@@ -413,3 +413,5 @@ We'll be waiting with the tea on.
 If this book helped you plan a better trip, the single kindest thing you can do is **leave an honest review** — it helps other travelers find it and helps me keep it updated. Thank you, and *güle güle.*
 
 *Planning your stay? Look for a cave hotel that books you direct, arranges your transfer, and sorts your balloon flight with an operator it trusts — it's the easiest way to travel Cappadocia well.*
+
+**Questions, or planning your trip? Write to us at Cappadociatravels50@gmail.com — a real person who lives here will answer.**
