@@ -61,6 +61,16 @@ Server runs at `http://localhost:8000`
 ### Reviews
 - `POST /reviews/auto-respond` — Generate multilingual review response
 
+### Commission Bookings 💶
+Turn the balloon/tour prices you already quote every morning into commission
+income instead of a €0 referral to someone else.
+- `POST /experiences` — Register a bookable experience + the commission you earn (e.g. 20%)
+- `GET /experiences` — List bookable experiences (shows your €/booking)
+- `POST /quotes` — Create a per-guest quote → returns a one-tap booking link + ready-to-send WhatsApp message (5 languages)
+- `GET /book/{token}` — Guest-facing booking page (opened from the link)
+- `POST /book/{token}/confirm` — Guest confirms → commission earned
+- `GET /commissions` — Earnings dashboard (earned vs. pending, by category)
+
 ## Roadmap
 
 ### Phase 1: Single Property (Current)
