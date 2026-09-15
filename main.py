@@ -51,24 +51,33 @@ def init_db():
 
     # Bookable experiences you can broker for a commission
     # (balloon flights, airport transfers, ATV, jeep safari, Turkish night, ...)
+    # Resale catalog. Your model: the operator gives a daily COST; you add a
+    # MARKUP; the guest pays you the SELL price (cost + markup). Your profit is
+    # the markup. price_eur = the sell price shown to the guest.
     c.execute('''CREATE TABLE IF NOT EXISTS experiences
                  (id INTEGER PRIMARY KEY, category TEXT, operator TEXT,
                   title TEXT, price_eur REAL, commission_pct REAL,
                   availability INTEGER, active BOOLEAN, updated_at TEXT,
-                  booking_url TEXT)''')
-    # add booking_url to older databases that predate it (affiliate deep link)
-    cols = [r[1] for r in c.execute("PRAGMA table_info(experiences)").fetchall()]
-    if "booking_url" not in cols:
-        c.execute("ALTER TABLE experiences ADD COLUMN booking_url TEXT")
+                  booking_url TEXT, cost_eur REAL, markup_eur REAL)''')
+    ecols = [r[1] for r in c.execute("PRAGMA table_info(experiences)").fetchall()]
+    for col in ("booking_url", "cost_eur", "markup_eur"):
+        if col not in ecols:
+            c.execute("ALTER TABLE experiences ADD COLUMN %s %s"
+                      % (col, "TEXT" if col == "booking_url" else "REAL"))
 
-    # Guest bookings routed through the hotel — the commission-earning table.
-    # Each row is a euro you would otherwise have left on the table.
+    # Guest bookings routed through the hotel — the profit-earning table.
+    # Each row is markup you would otherwise have left on the table.
     c.execute('''CREATE TABLE IF NOT EXISTS experience_bookings
                  (id INTEGER PRIMARY KEY, token TEXT UNIQUE, guest_name TEXT,
                   guest_phone TEXT, experience_id INTEGER, category TEXT,
                   operator TEXT, title TEXT, pax INTEGER, price_eur REAL,
                   commission_pct REAL, commission_eur REAL, status TEXT,
-                  created_at TEXT, confirmed_at TEXT)''')
+                  created_at TEXT, confirmed_at TEXT,
+                  cost_total_eur REAL, profit_eur REAL)''')
+    bcols = [r[1] for r in c.execute("PRAGMA table_info(experience_bookings)").fetchall()]
+    for col in ("cost_total_eur", "profit_eur"):
+        if col not in bcols:
+            c.execute("ALTER TABLE experience_bookings ADD COLUMN %s REAL" % col)
 
     conn.commit()
     conn.close()
@@ -106,10 +115,13 @@ class Experience(BaseModel):
     category: str          # balloon, transfer, atv, safari, dinner, tour
     operator: str
     title: str
-    price_eur: float       # price per person the guest pays
-    commission_pct: float  # your cut, e.g. 20.0 for 20%
+    cost_eur: float        # what the operator charges you (changes daily)
+    markup_eur: float      # what you add on top — your profit per person
     availability: int = 0
-    booking_url: str = ""  # affiliate/booking deep link (Viator, GetYourGuide, ...)
+
+class DailyPrice(BaseModel):
+    cost_eur: float                 # today's operator cost per person
+    markup_eur: float | None = None # optional: change your markup too
 
 class Quote(BaseModel):
     guest_name: str
@@ -348,11 +360,11 @@ def get_reviews(status: str = None):
     ]
 
 # ---------------------------------------------------------------------------
-# Commission booking flow
+# Resale / markup booking flow
 # ---------------------------------------------------------------------------
-# The money leak this closes: guests already ask you for balloon/tour prices
-# every morning. Today you quote them and they book elsewhere -> you earn €0.
-# Here you become the booking channel and keep the operator commission.
+# Your model: the operator gives you a daily COST (e.g. ~150€, changes daily).
+# You add a MARKUP and sell to your own guest, who pays YOU directly (like the
+# room). Your profit is the markup. No commission platform, no card, no login.
 
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000")
 
@@ -378,40 +390,67 @@ QUOTE_TEMPLATES = {
 
 @app.post("/experiences")
 def upsert_experience(exp: Experience):
-    """Register (or update) a bookable experience and the commission you earn on it."""
+    """Add a resale experience: operator cost + your markup = the guest price."""
     conn = sqlite3.connect("cappadocia_ops.db")
     c = conn.cursor()
     updated_at = datetime.now().isoformat()
+    sell = round(exp.cost_eur + exp.markup_eur, 2)
     c.execute("""INSERT INTO experiences
                  (category, operator, title, price_eur, commission_pct,
-                  availability, active, updated_at, booking_url)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-              (exp.category, exp.operator, exp.title, exp.price_eur,
-               exp.commission_pct, exp.availability, True, updated_at, exp.booking_url))
+                  availability, active, updated_at, booking_url, cost_eur, markup_eur)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+              (exp.category, exp.operator, exp.title, sell, 0,
+               exp.availability, True, updated_at, "", exp.cost_eur, exp.markup_eur))
     conn.commit()
     exp_id = c.lastrowid
     conn.close()
-    return {"id": exp_id, **exp.dict(), "active": True, "updated_at": updated_at}
+    return {"id": exp_id, **exp.dict(), "sell_eur": sell,
+            "active": True, "updated_at": updated_at}
+
+
+@app.post("/experiences/{exp_id}/price")
+def set_daily_price(exp_id: int, price: DailyPrice):
+    """
+    Update today's operator cost (and optionally your markup). Call this each
+    morning when the operator gives you the day's balloon/tour price.
+    """
+    conn = sqlite3.connect("cappadocia_ops.db")
+    c = conn.cursor()
+    c.execute("SELECT markup_eur FROM experiences WHERE id = ?", (exp_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Experience not found")
+    markup = price.markup_eur if price.markup_eur is not None else (row[0] or 0)
+    sell = round(price.cost_eur + markup, 2)
+    updated_at = datetime.now().isoformat()
+    c.execute("""UPDATE experiences SET cost_eur = ?, markup_eur = ?, price_eur = ?,
+                 updated_at = ? WHERE id = ?""",
+              (price.cost_eur, markup, sell, updated_at, exp_id))
+    conn.commit()
+    conn.close()
+    return {"id": exp_id, "cost_eur": price.cost_eur, "markup_eur": markup,
+            "sell_eur": sell, "updated_at": updated_at}
 
 
 @app.get("/experiences")
 def list_experiences(category: str = None):
-    """List bookable experiences, optionally filtered by category."""
+    """List resale experiences with your cost, markup and sell price."""
     conn = sqlite3.connect("cappadocia_ops.db")
     c = conn.cursor()
     if category:
         c.execute("""SELECT * FROM experiences WHERE active = 1 AND category = ?
-                     ORDER BY commission_pct DESC""", (category,))
+                     ORDER BY markup_eur DESC""", (category,))
     else:
-        c.execute("SELECT * FROM experiences WHERE active = 1 ORDER BY category, commission_pct DESC")
+        c.execute("SELECT * FROM experiences WHERE active = 1 ORDER BY category, markup_eur DESC")
     rows = c.fetchall()
     conn.close()
     return [
         {
             "id": r[0], "category": r[1], "operator": r[2], "title": r[3],
-            "price_eur": r[4], "commission_pct": r[5], "availability": r[6],
-            "your_commission_eur": round(r[4] * r[5] / 100, 2),
-            "updated_at": r[8], "booking_url": r[9] or "",
+            "sell_eur": r[4], "availability": r[6], "updated_at": r[8],
+            "cost_eur": r[10], "markup_eur": r[11],
+            "your_profit_per_person_eur": r[11],
         } for r in rows
     ]
 
@@ -431,27 +470,27 @@ def create_quote(quote: Quote):
         conn.close()
         raise HTTPException(status_code=404, detail="Experience not found or inactive")
 
-    price_pp = exp[4]
-    commission_pct = exp[5]
+    price_pp = exp[4]                 # sell price per person (cost + markup)
+    cost_pp = exp[10] or 0
+    markup_pp = exp[11] or 0
     total = round(price_pp * quote.pax, 2)
-    commission_eur = round(total * commission_pct / 100, 2)
+    cost_total = round(cost_pp * quote.pax, 2)
+    profit = round(markup_pp * quote.pax, 2)
     token = secrets.token_urlsafe(9)
     created_at = datetime.now().isoformat()
 
     c.execute("""INSERT INTO experience_bookings
                  (token, guest_name, guest_phone, experience_id, category, operator,
-                  title, pax, price_eur, commission_pct, commission_eur, status, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                  title, pax, price_eur, commission_pct, commission_eur, status,
+                  created_at, cost_total_eur, profit_eur)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
               (token, quote.guest_name, quote.guest_phone, exp[0], exp[1], exp[2],
-               exp[3], quote.pax, total, commission_pct, commission_eur, "quoted", created_at))
+               exp[3], quote.pax, total, 0, profit, "quoted", created_at,
+               cost_total, profit))
     conn.commit()
     conn.close()
 
-    internal_link = f"{PUBLIC_BASE_URL}/book/{token}"
-    affiliate_link = exp[9] or ""
-    # If an affiliate/booking deep link exists, send the guest straight there so
-    # the sale is attributed to you; otherwise fall back to the internal page.
-    link = affiliate_link or internal_link
+    link = f"{PUBLIC_BASE_URL}/book/{token}"
     template = QUOTE_TEMPLATES.get(quote.language, QUOTE_TEMPLATES["en"])
     whatsapp_message = template.format(
         name=quote.guest_name, title=exp[3], pax=quote.pax,
@@ -464,12 +503,11 @@ def create_quote(quote: Quote):
         "title": exp[3],
         "operator": exp[1],
         "pax": quote.pax,
-        "total_eur": total,
-        "your_commission_eur": commission_eur,
+        "guest_pays_eur": total,
+        "your_cost_eur": cost_total,
+        "your_profit_eur": profit,
         "status": "quoted",
         "booking_link": link,
-        "affiliate_link": affiliate_link,
-        "internal_link": internal_link,
         "whatsapp_message": whatsapp_message,
     }
 
@@ -513,10 +551,10 @@ def guest_booking_page(token: str):
 
 @app.post("/book/{token}/confirm")
 def confirm_booking(token: str):
-    """Guest confirms — the commission is now earned (pending operator payout)."""
+    """Guest confirms — your markup profit is now booked (collect at the hotel)."""
     conn = sqlite3.connect("cappadocia_ops.db")
     c = conn.cursor()
-    c.execute("SELECT status, commission_eur FROM experience_bookings WHERE token = ?", (token,))
+    c.execute("SELECT status, profit_eur FROM experience_bookings WHERE token = ?", (token,))
     row = c.fetchone()
     if not row:
         conn.close()
@@ -532,33 +570,35 @@ def confirm_booking(token: str):
     conn.commit()
     conn.close()
     return {"token": token, "status": "confirmed",
-            "commission_earned_eur": row[1], "confirmed_at": confirmed_at}
+            "your_profit_eur": row[1], "confirmed_at": confirmed_at}
 
 
-@app.get("/commissions")
-def commission_summary():
+@app.get("/profit")
+def profit_summary():
     """
-    Your money dashboard: what you've earned and what's still pending,
-    broken down by status and category.
+    Your money dashboard: markup profit earned and still pending, plus the
+    total the guests pay and your cost, broken down by status and category.
     """
     conn = sqlite3.connect("cappadocia_ops.db")
     c = conn.cursor()
-    c.execute("""SELECT status, COUNT(*), COALESCE(SUM(commission_eur), 0)
+    c.execute("""SELECT status, COUNT(*), COALESCE(SUM(profit_eur), 0),
+                        COALESCE(SUM(price_eur), 0), COALESCE(SUM(cost_total_eur), 0)
                  FROM experience_bookings GROUP BY status""")
-    by_status = {r[0]: {"bookings": r[1], "commission_eur": round(r[2], 2)}
+    by_status = {r[0]: {"bookings": r[1], "profit_eur": round(r[2], 2),
+                        "guest_pays_eur": round(r[3], 2), "cost_eur": round(r[4], 2)}
                  for r in c.fetchall()}
-    c.execute("""SELECT category, COUNT(*), COALESCE(SUM(commission_eur), 0)
+    c.execute("""SELECT category, COUNT(*), COALESCE(SUM(profit_eur), 0)
                  FROM experience_bookings
                  WHERE status IN ('confirmed', 'paid')
                  GROUP BY category ORDER BY 3 DESC""")
-    by_category = [{"category": r[0], "bookings": r[1], "commission_eur": round(r[2], 2)}
+    by_category = [{"category": r[0], "bookings": r[1], "profit_eur": round(r[2], 2)}
                    for r in c.fetchall()]
-    earned = sum(v["commission_eur"] for k, v in by_status.items() if k in ("confirmed", "paid"))
-    pending = by_status.get("quoted", {}).get("commission_eur", 0)
+    earned = sum(v["profit_eur"] for k, v in by_status.items() if k in ("confirmed", "paid"))
+    pending = by_status.get("quoted", {}).get("profit_eur", 0)
     conn.close()
     return {
-        "earned_eur": round(earned, 2),
-        "pending_in_quotes_eur": round(pending, 2),
+        "profit_earned_eur": round(earned, 2),
+        "profit_pending_in_quotes_eur": round(pending, 2),
         "by_status": by_status,
         "by_category": by_category,
     }

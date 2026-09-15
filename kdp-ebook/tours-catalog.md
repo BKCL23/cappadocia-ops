@@ -1,54 +1,50 @@
-# Your Cappadocia Tours — fill this in and send it back to me
+# Your Cappadocia Tours — resale / markup model
 
-I've built these 12 experiences into your app. **Two columns are yours to fill:**
-- **Your price (€)** — set the real price a guest pays (or send me your operator's price list and I'll enter it).
-- **Affiliate link** — paste the link after you sign up (see bottom). Until then, leave blank; the app uses your internal booking page as a fallback.
+This now matches how you actually work: **the operator gives you a daily cost → you add a markup → the guest pays you.** Your profit is the markup. No commission, no Viator, no card — the guest pays **you** directly, like they pay for the room.
 
-Send this back with prices/links filled and I'll update everything in minutes.
+I've built these 12 tours into your app. **Fill the two columns that are yours:**
+- **Your markup (€)** — how much you add on top per person (your profit).
+- **Typical cost (€)** — roughly what the operator charges you now (I'll update the exact number daily).
 
-| # | Category | Tour | Placeholder price (€) | Commission % | Your price (€) | Affiliate link |
-|---|----------|------|----------------------:|-------------:|---------------:|----------------|
-| 1 | balloon | Sunrise Hot-Air Balloon Flight (Standard, ~60 min) | 180 | 8 | ______ | ______ |
-| 2 | balloon | Deluxe Sunrise Balloon Flight (small basket, ~75 min) | 250 | 8 | ______ | ______ |
-| 3 | balloon | Private Hot-Air Balloon Flight | 900 | 8 | ______ | ______ |
-| 4 | tour | Red Tour — North (Göreme, valleys, Uçhisar) | 45 | 10 | ______ | ______ |
-| 5 | tour | Green Tour — South (Ihlara, Derinkuyu underground city) | 55 | 10 | ______ | ______ |
-| 6 | atv | Sunset ATV / Quad Safari (2h) | 40 | 10 | ______ | ______ |
-| 7 | horse | Sunset Horseback Ride through the Valleys (2h) | 55 | 10 | ______ | ______ |
-| 8 | transfer | Private Airport Transfer (NAV/ASR ↔ hotel) | 45 | 12 | ______ | ______ |
-| 9 | dinner | Turkish Night Cultural Show with Dinner | 45 | 12 | ______ | ______ |
-| 10 | tour | Cappadocia Sunrise Photography Tour | 60 | 10 | ______ | ______ |
-| 11 | experience | Pottery Workshop in Avanos | 25 | 10 | ______ | ______ |
-| 12 | experience | Cappadocia Cooking Class | 45 | 10 | ______ | ______ |
+Send it back and I'll set it all in the app.
 
-*Want to add or remove tours? Just tell me — I'll change the list.*
+| # | Category | Tour | Typical cost (€) | Your markup (€) | Guest pays (€) |
+|---|----------|------|-----------------:|----------------:|---------------:|
+| 1 | balloon | Sunrise Balloon Flight (Standard, ~60 min) | ~150 | ______ | = cost + markup |
+| 2 | balloon | Deluxe Sunrise Balloon Flight (~75 min) | ~210 | ______ | |
+| 3 | balloon | Private Hot-Air Balloon Flight | ~800 | ______ | |
+| 4 | tour | Red Tour — North (Göreme, valleys, Uçhisar) | ~35 | ______ | |
+| 5 | tour | Green Tour — South (Ihlara, Derinkuyu) | ~45 | ______ | |
+| 6 | atv | Sunset ATV / Quad Safari (2h) | ~30 | ______ | |
+| 7 | horse | Sunset Horseback Ride (2h) | ~45 | ______ | |
+| 8 | transfer | Private Airport Transfer (NAV/ASR ↔ hotel) | ~35 | ______ | |
+| 9 | dinner | Turkish Night Show with Dinner | ~35 | ______ | |
+| 10 | tour | Sunrise Photography Tour | ~50 | ______ | |
+| 11 | experience | Pottery Workshop in Avanos | ~20 | ______ | |
+| 12 | experience | Cappadocia Cooking Class | ~35 | ______ | |
 
----
-
-## How the money works here
-
-You are **not selling anything and not paying anything.** A guest asks about a balloon → you send a quote → they tap your affiliate link → they book on Viator/GetYourGuide → **you get paid a commission**, straight to your bank/PayPal. The app writes the WhatsApp message for you and tracks every commission on your `/commissions` dashboard.
+*Want to add/remove tours or change the operator names? Just tell me.*
 
 ---
 
-## Sign-up steps (free, no credit card — this is what dodges your Amazon/card problem)
+## How it works day to day
 
-You only need a **bank account or PayPal to *receive* money.** No card, no CVV, no upfront payment.
+1. **Morning:** the operator gives you today's balloon cost (say €165). You tell me → I set it, or you hit the daily-price update in the app. Your markup stays; the guest price updates automatically.
+2. **Guest asks the price:** the app writes the WhatsApp message for you (in their language) with the price.
+3. **Guest says yes:** they pay **you** — cash at reception, or however you already take room payment. You pay the operator the cost. **You keep the markup.**
+4. The **`/profit` dashboard** adds up everything you've earned.
 
-**1. GetYourGuide Partner** — the best fit for Cappadocia balloons/tours
-- Go to **partner.getyourguide.com** → sign up (email).
-- Add your **payout method** (bank/PayPal).
-- Search a tour (e.g. "Cappadocia balloon"), grab your **partner link** for each.
-
-**2. Viator (Tripadvisor) affiliate** — second source, big catalog
-- Go to **viator.com/partner** (or search "Viator affiliate program") → sign up.
-- Add payout details → get your affiliate links.
-
-**3. Send me the links** (and your real prices) — I paste them into the app and it's live.
+**Example (real numbers from your app):** operator cost €165, your markup €30 → guest pays €195/person. A couple = €390 in, €330 to the operator, **€60 in your pocket.** Do that for 20 balloon bookings a week and that's **~€1,200/week** in markup.
 
 ---
 
-## Why not Amazon affiliate / ads first
+## What you do NOT need for this
+- ❌ No Viator, no GetYourGuide, no affiliate account
+- ❌ No credit card, no CVV, no Amazon
+- ❌ No commission platform
+- ✅ Just your operator relationships (you have them) + your guests (you have them) + the app (done)
 
-- **Amazon affiliate** needs the same Amazon login that's currently blocking you, pays tiny commissions, and doesn't fit tours — skip it for now.
-- **Paid ads** cost money up front (and need a working card). Start with your **free** channel: message the guests you already have. Ads only make sense later, once commissions are already coming in and we know which tour converts.
+---
+
+## "Other ways" — later, optional
+Once this is running, **Viator** can be a *second* channel: list your marked-up tours there to reach travelers who *aren't* your guests. That's a separate setup and we can do it once the direct resale to your own guests is earning. First things first — send me your markups and let's turn on the money you're already leaving on the table.
