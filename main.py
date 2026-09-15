@@ -54,7 +54,12 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS experiences
                  (id INTEGER PRIMARY KEY, category TEXT, operator TEXT,
                   title TEXT, price_eur REAL, commission_pct REAL,
-                  availability INTEGER, active BOOLEAN, updated_at TEXT)''')
+                  availability INTEGER, active BOOLEAN, updated_at TEXT,
+                  booking_url TEXT)''')
+    # add booking_url to older databases that predate it (affiliate deep link)
+    cols = [r[1] for r in c.execute("PRAGMA table_info(experiences)").fetchall()]
+    if "booking_url" not in cols:
+        c.execute("ALTER TABLE experiences ADD COLUMN booking_url TEXT")
 
     # Guest bookings routed through the hotel — the commission-earning table.
     # Each row is a euro you would otherwise have left on the table.
@@ -104,6 +109,7 @@ class Experience(BaseModel):
     price_eur: float       # price per person the guest pays
     commission_pct: float  # your cut, e.g. 20.0 for 20%
     availability: int = 0
+    booking_url: str = ""  # affiliate/booking deep link (Viator, GetYourGuide, ...)
 
 class Quote(BaseModel):
     guest_name: str
@@ -378,10 +384,10 @@ def upsert_experience(exp: Experience):
     updated_at = datetime.now().isoformat()
     c.execute("""INSERT INTO experiences
                  (category, operator, title, price_eur, commission_pct,
-                  availability, active, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                  availability, active, updated_at, booking_url)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
               (exp.category, exp.operator, exp.title, exp.price_eur,
-               exp.commission_pct, exp.availability, True, updated_at))
+               exp.commission_pct, exp.availability, True, updated_at, exp.booking_url))
     conn.commit()
     exp_id = c.lastrowid
     conn.close()
@@ -405,7 +411,7 @@ def list_experiences(category: str = None):
             "id": r[0], "category": r[1], "operator": r[2], "title": r[3],
             "price_eur": r[4], "commission_pct": r[5], "availability": r[6],
             "your_commission_eur": round(r[4] * r[5] / 100, 2),
-            "updated_at": r[8],
+            "updated_at": r[8], "booking_url": r[9] or "",
         } for r in rows
     ]
 
@@ -441,7 +447,11 @@ def create_quote(quote: Quote):
     conn.commit()
     conn.close()
 
-    link = f"{PUBLIC_BASE_URL}/book/{token}"
+    internal_link = f"{PUBLIC_BASE_URL}/book/{token}"
+    affiliate_link = exp[9] or ""
+    # If an affiliate/booking deep link exists, send the guest straight there so
+    # the sale is attributed to you; otherwise fall back to the internal page.
+    link = affiliate_link or internal_link
     template = QUOTE_TEMPLATES.get(quote.language, QUOTE_TEMPLATES["en"])
     whatsapp_message = template.format(
         name=quote.guest_name, title=exp[3], pax=quote.pax,
@@ -458,6 +468,8 @@ def create_quote(quote: Quote):
         "your_commission_eur": commission_eur,
         "status": "quoted",
         "booking_link": link,
+        "affiliate_link": affiliate_link,
+        "internal_link": internal_link,
         "whatsapp_message": whatsapp_message,
     }
 
